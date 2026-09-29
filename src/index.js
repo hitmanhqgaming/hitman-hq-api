@@ -13,14 +13,8 @@ function json(data, status = 200) {
   });
 }
 
-function getTag(xml, tag) {
-  const match = xml.match(
-    new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i")
-  );
-
-  if (!match) return "";
-
-  return match[1]
+function decodeXml(value) {
+  return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -30,10 +24,20 @@ function getTag(xml, tag) {
     .trim();
 }
 
-function getLatest(xml) {
-  const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)];
+function getTag(xml, tag) {
+  const match = xml.match(
+    new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i")
+  );
 
-  if (!entries.length) return null;
+  return match ? decodeXml(match[1]) : "";
+}
+
+function getLatest(xml) {
+  const entries = [...xml.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi)];
+
+  if (!entries.length) {
+    return null;
+  }
 
   const entry = entries[0][1];
 
@@ -42,12 +46,14 @@ function getLatest(xml) {
   const publishedAt = getTag(entry, "published");
 
   const linkMatch = entry.match(
-    /<link[^>]+rel=["']alternate["'][^>]+href=["']([^"']+)["']/i
+    /<link\b[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/i
   );
 
   const url =
     linkMatch?.[1] ||
-    (videoId ? `https://www.youtube.com/watch?v=${videoId}` : "");
+    (videoId
+      ? `https://www.youtube.com/watch?v=${videoId}`
+      : "");
 
   return {
     video_id: videoId,
@@ -64,7 +70,10 @@ function getLatest(xml) {
 export default {
   async fetch(request) {
     if (request.method !== "GET") {
-      return json({ error: "Method not allowed" }, 405);
+      return json(
+        { error: "Method not allowed" },
+        405
+      );
     }
 
     try {
@@ -96,6 +105,7 @@ export default {
         channel_url: CHANNEL_URL,
         latest
       });
+
     } catch (error) {
       return json(
         {
